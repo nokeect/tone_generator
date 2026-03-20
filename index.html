@@ -152,6 +152,26 @@ body::before {
 }
 .note-btn.active .n-hz { color: var(--parch3); opacity: .7; }
 
+/* Lowercase notes — centered vertically */
+.note-lower {
+  justify-content: center;
+  padding-top: 0;
+  padding-bottom: 0;
+}
+.note-lower .n-oct { top: 3px; right: 5px; }
+
+/* Empty placeholder cells flanking γα */
+.note-placeholder { visibility: hidden; }
+
+/* Lone centered note (γα) — full width, centred in row */
+.note-center {
+  justify-content: center;
+  padding-top: 0;
+  padding-bottom: 0;
+  grid-column: 2 / 3;
+  width: 100%;
+}
+
 /* Octave badge */
 .n-oct {
   position: absolute;
@@ -364,6 +384,11 @@ input[type=range].bpm-sl::-webkit-slider-thumb {
 }
 .byz-select option { background: #1a0f05; color: var(--parch); }
 
+/* Rhythm + Volume two-col */
+.metro-rv-row { display:grid; grid-template-columns:1fr 1fr; gap:.6rem; }
+.metro-rv-half { display:flex; flex-direction:column; }
+.metro-vol-val { font-family:'Cinzel',serif; font-size:.5rem; color:var(--gold-dim); text-align:right; margin-top:.2rem; }
+
 /* Beat dots */
 .beat-row { display: flex; gap: 5px; align-items: center; flex-wrap: wrap; min-height: 16px; }
 .bdot {
@@ -426,7 +451,9 @@ input[type=range].bpm-sl::-webkit-slider-thumb {
     <button class="oct-btn" id="octShiftBtn" title="Shift octave up/down">▲ OCT <span id="octShiftLabel">+0</span></button>
   </div>
   <div class="notes-area">
-    <div class="notes-grid" id="notesGrid"></div>
+    <div class="notes-grid" id="notesGrid">
+      <!-- γα row added by JS -->
+    </div>
   </div>
 
   <!-- CENTS + VOLUME -->
@@ -496,9 +523,16 @@ input[type=range].bpm-sl::-webkit-slider-thumb {
         <input type="range" id="bpmSlider" class="bpm-sl" min="20" max="300" value="120" step="1" style="--bval:35%">
         <button class="bstep" id="bpmUp">+</button>
       </div>
-      <div class="rhythm-row">
-        <span class="rhythm-label">Rhythm:</span>
-        <select id="rhythmSelect" class="byz-select"></select>
+      <div class="metro-rv-row">
+        <div class="metro-rv-half">
+          <div class="rhythm-label">Rhythm</div>
+          <select id="rhythmSelect" class="byz-select" style="width:100%;margin-top:.3rem"></select>
+        </div>
+        <div class="metro-rv-half">
+          <div class="rhythm-label">Volume</div>
+          <input type="range" id="metroVolSlider" class="bpm-sl" min="0" max="100" value="80" step="1" style="--bval:80%;margin-top:.55rem">
+          <div class="metro-vol-val" id="metroVolVal">80%</div>
+        </div>
       </div>
       <div class="beat-row" id="beatRow"></div>
       <button class="metro-play-btn" id="metroBtn">▶ START METRONOME</button>
@@ -521,52 +555,52 @@ input[type=range].bpm-sl::-webkit-slider-thumb {
 // ══════════════════════════════════════
 const SUBS = ['₀','₁','₂','₃','₄','₅','₆','₇','₈','₉'];
 
-const PSALTIC_MAP = {
-  0:  {ps:'Νη'},   // DO
-  2:  {ps:'Πα'},   // RE
-  4:  {ps:'Βου'},  // MI
-  5:  {ps:'Γα'},   // FA
-  7:  {ps:'Δι'},   // SOL
-  9:  {ps:'Κε'},   // LA
-  11: {ps:'Ζω'},   // SI
-};
+// ══════════════════════════════════════
+//  GRID — explicit MIDI + label per cell
+//  Layout:
+//    Ζω' Νι' Πα'   (SI3 DO4 RE4)
+//    Γα  Δι  Κε    (FA3 SOL3 LA3)
+//    Νι  Πα  Βου   (DO3 RE3 MI3)
+//    δι  κε  Ζω    (SOL2 LA2 SI2)
+//    γα  [center]  (FA2)
+// ══════════════════════════════════════
+const GRID_ENTRIES = [
+  // row 1 — top
+  { midi: 59, label: "Ζω'" },  // SI3
+  { midi: 60, label: "Νι'" },  // DO4
+  { midi: 62, label: "Πα'" },  // RE4
+  // row 2
+  { midi: 53, label: 'Γα'  },  // FA3
+  { midi: 55, label: 'Δι'  },  // SOL3
+  { midi: 57, label: 'Κε'  },  // LA3
+  // row 3
+  { midi: 48, label: 'Νι'  },  // DO3
+  { midi: 50, label: 'Πα'  },  // RE3
+  { midi: 52, label: 'Βου' },  // MI3
+  // row 4
+  { midi: 43, label: 'δι'  },  // SOL2
+  { midi: 45, label: 'κε'  },  // LA2
+  { midi: 47, label: 'Ζω'  },  // SI2
+  // γα (FA2) rendered separately below grid
+];
 
-// Build all natural notes FA2→MI4
-const ALL_NOTES = [];
-for (let midi = 41; midi <= 64; midi++) {
-  const oct = Math.floor(midi/12) - 1;
-  const st  = midi % 12;
-  if (!PSALTIC_MAP[st]) continue;
-  const freq = 440 * Math.pow(2, (midi-69)/12);
-  ALL_NOTES.push({ ps: PSALTIC_MAP[st].ps, st, oct, midi, freq });
-}
-// ALL_NOTES ascending: FA2 SOL2 LA2 SI2 DO3 RE3 MI3 FA3 SOL3 LA3 SI3 DO4 RE4 MI4  (14 notes)
-
-// For the grid we want:
-//  - LEFT = LOW, RIGHT = HIGH within each row
-//  - TOP row = highest notes, BOTTOM row = lowest notes
-//  So we fill CSS grid top-left → bottom-right with descending notes,
-//  but within each row of 3 we want ascending (low→high left→right).
-//
-// Strategy: reverse ALL_NOTES → MI4…FA2 (highest first).
-// Chunk into rows of 3, each chunk is still descending [high,mid,low].
-// Reverse each chunk so each row displays [low,mid,high] left→right. ✓
-
-const reversed = [...ALL_NOTES].reverse(); // MI4 … FA2
-const rows = [];
-for (let i = 0; i < reversed.length; i += 3) {
-  const chunk = reversed.slice(i, i+3);
-  rows.push(chunk.reverse()); // each row: low → high left→right
-}
-// Flatten for grid
-const GRID_NOTES = rows.flat();
+// Build ALL_NOTES from GRID_ENTRIES + γα (FA2, midi 41)
+const ALL_NOTES = [
+  ...GRID_ENTRIES,
+  { midi: 41, label: 'γα' },
+].map(e => ({
+  midi: e.midi,
+  label: e.label,
+  freq: 440 * Math.pow(2, (e.midi - 69) / 12),
+  oct: Math.floor(e.midi / 12) - 1,
+}));
 
 // ══════════════════════════════════════
 //  STATE
 // ══════════════════════════════════════
-let selectedMidi = 64; // MI4
+let selectedMidi = 60; // Νι' (DO4) — default
 let octaveShift = 0;
-let baseFreq = ALL_NOTES.find(n=>n.midi===64).freq;
+let baseFreq = ALL_NOTES.find(n=>n.midi===60).freq;
 let cents = 0;
 let currentFreq = baseFreq;
 let waveType = 'sine';
@@ -580,29 +614,36 @@ let audioCtx = null, oscillator = null, gainNode = null, analyser = null;
 // ══════════════════════════════════════
 const notesGrid = document.getElementById('notesGrid');
 
-GRID_NOTES.forEach(n => {
+GRID_ENTRIES.forEach((e) => {
   const btn = document.createElement('button');
-  btn.className = 'note-btn' + (n.midi===selectedMidi?' active':'');
-  btn.dataset.midi = n.midi;
-  btn.innerHTML = `
-    <span class="n-oct">${SUBS[n.oct]}</span>
-    <span class="n-psaltic">${n.ps}</span>
-  `;
-  btn.addEventListener('click', () => selectNote(n.midi));
+  btn.className = 'note-btn' + (e.midi===selectedMidi?' active':'');
+  btn.dataset.midi = e.midi;
+  btn.innerHTML = `<span class="n-psaltic">${e.label}</span>`;
+  btn.addEventListener('click', () => selectNote(e.midi));
   notesGrid.appendChild(btn);
 });
 
-// Spacer for last row (14 notes → 5 rows × 3 = 15, need 1 spacer)
-const rem = GRID_NOTES.length % 3;
-if (rem !== 0) {
-  for (let i = 0; i < 3 - rem; i++) {
-    const sp = document.createElement('div');
-    notesGrid.appendChild(sp);
-  }
-}
+// γα (FA2) — place as middle cell of last row using empty invisible siblings
+const emptyL = document.createElement('div');
+emptyL.className = 'note-placeholder';
+notesGrid.appendChild(emptyL);
+
+const gaBtn = document.createElement('button');
+gaBtn.id = 'gaBtn';
+gaBtn.className = 'note-btn' + (selectedMidi===41?' active':'');
+gaBtn.dataset.midi = 41;
+gaBtn.innerHTML = `<span class="n-psaltic">γα</span>`;
+gaBtn.addEventListener('click', () => selectNote(41));
+notesGrid.appendChild(gaBtn);
+
+const emptyR = document.createElement('div');
+emptyR.className = 'note-placeholder';
+notesGrid.appendChild(emptyR);
+
+
+
 
 function selectNote(midi) {
-  // Tap active note while playing → stop
   if (isPlaying && midi === selectedMidi) {
     stopOsc();
     return;
@@ -612,7 +653,6 @@ function selectNote(midi) {
   baseFreq = note.freq * Math.pow(2, octaveShift);
   applyFreq();
   updateKb();
-  // Always start playing on note tap
   startOsc();
 }
 
@@ -620,6 +660,8 @@ function updateKb() {
   notesGrid.querySelectorAll('.note-btn').forEach(b =>
     b.classList.toggle('active', +b.dataset.midi === selectedMidi)
   );
+  const gaBtn = document.getElementById('gaBtn');
+  if (gaBtn) gaBtn.classList.toggle('active', selectedMidi === 41);
 }
 
 // ══════════════════════════════════════
@@ -829,6 +871,8 @@ function flashDot(idx) {
   }
 }
 
+let metroVolume = 0.8;
+
 function schedClick(time, accent) {
   if (!metroCtx) return;
   const sr=metroCtx.sampleRate, samps=Math.ceil(sr*(accent?.013:.009));
@@ -836,7 +880,8 @@ function schedClick(time, accent) {
   const f=accent?1400:900;
   for(let i=0;i<samps;i++) d[i]=Math.exp(-i/(samps*.28))*Math.sin(2*Math.PI*f*i/sr);
   const src=metroCtx.createBufferSource(); src.buffer=buf;
-  const g=metroCtx.createGain(); g.gain.setValueAtTime(accent?.88:.48,time);
+  const g=metroCtx.createGain();
+  g.gain.setValueAtTime((accent?.88:.48)*metroVolume, time);
   src.connect(g); g.connect(metroCtx.destination); src.start(time);
 }
 
@@ -860,6 +905,13 @@ function updateBpm() {
 bpmSl.addEventListener('input',()=>{ bpm=+bpmSl.value; updateBpm(); });
 document.getElementById('bpmDown').addEventListener('click',()=>{ bpm=Math.max(20,bpm-1); bpmSl.value=bpm; updateBpm(); });
 document.getElementById('bpmUp').addEventListener('click',()=>{ bpm=Math.min(300,bpm+1); bpmSl.value=bpm; updateBpm(); });
+
+const metroVolSl = document.getElementById('metroVolSlider');
+metroVolSl.addEventListener('input', () => {
+  metroVolume = metroVolSl.value / 100;
+  document.getElementById('metroVolVal').textContent = metroVolSl.value + '%';
+  metroVolSl.style.setProperty('--bval', metroVolSl.value + '%');
+});
 
 const metroBtn=document.getElementById('metroBtn');
 metroBtn.addEventListener('click',()=>{
