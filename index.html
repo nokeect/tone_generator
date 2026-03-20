@@ -734,8 +734,24 @@ document.querySelectorAll('.wave-btn').forEach(b => {
 // ══════════════════════════════════════
 //  AUDIO ENGINE
 // ══════════════════════════════════════
+
+// iOS requires AudioContext to be created AND resumed inside a user gesture.
+// We create it on first touch anywhere on the page.
+document.addEventListener('touchstart', function iosUnlock() {
+  if (!audioCtx) {
+    audioCtx = new (window.AudioContext||window.webkitAudioContext)();
+    analyser = audioCtx.createAnalyser(); analyser.fftSize=1024; analyser.smoothingTimeConstant=0;
+    gainNode = audioCtx.createGain();
+    gainNode.gain.setValueAtTime(volume, audioCtx.currentTime);
+    gainNode.connect(analyser); analyser.connect(audioCtx.destination);
+  }
+  if (audioCtx.state === 'suspended') audioCtx.resume();
+  document.removeEventListener('touchstart', iosUnlock);
+}, { passive: true });
+
 function initAudio() {
-  audioCtx = new (window.AudioContext||window.webkitAudioContext)({sampleRate:44100});
+  if (audioCtx) return; // already created by touchstart
+  audioCtx = new (window.AudioContext||window.webkitAudioContext)();
   analyser = audioCtx.createAnalyser(); analyser.fftSize=1024; analyser.smoothingTimeConstant=0;
   gainNode = audioCtx.createGain();
   gainNode.gain.setValueAtTime(volume, audioCtx.currentTime);
@@ -743,11 +759,12 @@ function initAudio() {
 }
 function startOsc() {
   if (!audioCtx) initAudio();
-  if (audioCtx.state==='suspended') audioCtx.resume();
-  oscillator = audioCtx.createOscillator();
-  oscillator.type = waveType;
-  oscillator.frequency.setValueAtTime(currentFreq, audioCtx.currentTime);
-  oscillator.connect(gainNode); oscillator.start();
+  audioCtx.resume().then(() => {
+    oscillator = audioCtx.createOscillator();
+    oscillator.type = waveType;
+    oscillator.frequency.setValueAtTime(currentFreq, audioCtx.currentTime);
+    oscillator.connect(gainNode); oscillator.start();
+  });
 }
 function stopOsc() {
   if (!oscillator) return;
@@ -895,9 +912,10 @@ const metroBtn=document.getElementById('metroBtn');
 metroBtn.addEventListener('click',()=>{
   if (!metroRunning) {
     if(!metroCtx) metroCtx=new (window.AudioContext||window.webkitAudioContext)();
-    if(metroCtx.state==='suspended') metroCtx.resume();
-    metroBeat=0; nextBeatTime=metroCtx.currentTime+.04; scheduler();
-    metroRunning=true; metroBtn.classList.add('running'); metroBtn.textContent='⏹ STOP METRONOME';
+    metroCtx.resume().then(() => {
+      metroBeat=0; nextBeatTime=metroCtx.currentTime+.04; scheduler();
+      metroRunning=true; metroBtn.classList.add('running'); metroBtn.textContent='⏹ STOP METRONOME';
+    });
   } else {
     clearTimeout(schedulerTimer); schedulerTimer=null;
     document.querySelectorAll('.bdot').forEach(d=>d.classList.remove('on-acc','on-beat'));
