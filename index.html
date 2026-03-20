@@ -273,39 +273,6 @@ input[type=range].byz-range::-webkit-slider-thumb {
 .ws-line { stroke: var(--ink2); fill: none; stroke-width: 1.5; }
 .wave-btn.active .ws-line { stroke: var(--gold3); }
 
-/* ── PLAY BUTTON ── */
-.play-wrap { padding: .3rem .75rem .35rem; }
-.play-btn {
-  width: 100%;
-  padding: .85rem;
-  background: linear-gradient(160deg, var(--burgundy) 0%, var(--ink2) 100%);
-  border: 2px solid var(--gold-dim);
-  border-radius: var(--radius);
-  color: var(--gold3);
-  font-family: 'Cinzel', serif;
-  font-size: .9rem;
-  font-weight: 600;
-  letter-spacing: .22em;
-  cursor: pointer;
-  transition: all .15s;
-  text-align: center;
-  box-shadow: 0 3px 10px var(--shadow), inset 0 1px 0 rgba(255,255,255,0.04);
-  position: relative;
-}
-.play-btn::before { content:'✦'; position:absolute; left:.85rem; top:50%; transform:translateY(-50%); font-size:.55rem; color:var(--gold-dim); opacity:.6; }
-.play-btn::after  { content:'✦'; position:absolute; right:.85rem; top:50%; transform:translateY(-50%); font-size:.55rem; color:var(--gold-dim); opacity:.6; }
-.play-btn:active { filter: brightness(1.15); transform: translateY(1px); }
-.play-btn.playing {
-  background: linear-gradient(160deg, #1a4a1a 0%, #0a1a0a 100%);
-  border-color: #4a8a3a;
-  color: #a0e080;
-  animation: glow-green 2s ease-in-out infinite;
-}
-@keyframes glow-green {
-  0%,100%{ box-shadow: 0 3px 10px var(--shadow); }
-  50%    { box-shadow: 0 3px 22px rgba(80,160,50,0.38); }
-}
-
 /* ── ORNAMENT ── */
 .ornament {
   text-align: center;
@@ -505,10 +472,6 @@ input[type=range].bpm-sl::-webkit-slider-thumb {
     </button>
   </div>
 
-  <!-- PLAY -->
-  <div class="play-wrap">
-    <button class="play-btn" id="playBtn">START TONE</button>
-  </div>
 
   <div class="ornament">✦ &nbsp; ✦ &nbsp; ✦</div>
 
@@ -649,6 +612,8 @@ function selectNote(midi) {
   baseFreq = note.freq * Math.pow(2, octaveShift);
   applyFreq();
   updateKb();
+  // Always start playing on note tap
+  startOsc();
 }
 
 function updateKb() {
@@ -748,7 +713,6 @@ function ensureAudio() {
 
 function startOsc() {
   ensureAudio().then(() => {
-    // stop any existing oscillator first
     if (oscillator) {
       try { oscillator.stop(); oscillator.disconnect(); } catch(e) {}
       oscillator = null;
@@ -761,10 +725,7 @@ function startOsc() {
     oscillator.frequency.setValueAtTime(currentFreq, audioCtx.currentTime);
     oscillator.connect(gainNode);
     oscillator.start();
-
     isPlaying = true;
-    playBtn.classList.add('playing');
-    playBtn.textContent = 'STOP TONE';
   });
 }
 
@@ -777,8 +738,6 @@ function stopOsc() {
     if (gainNode) gainNode.gain.setValueAtTime(volume, audioCtx.currentTime);
   }, 80);
   isPlaying = false;
-  playBtn.classList.remove('playing');
-  playBtn.textContent = 'START TONE';
 }
 
 function restartOsc() {
@@ -791,18 +750,6 @@ function restartOsc() {
   oscillator = neo;
   setTimeout(() => { try { old.stop(); old.disconnect(); } catch(e) {} }, 30);
 }
-
-// ══════════════════════════════════════
-//  PLAY BUTTON
-// ══════════════════════════════════════
-const playBtn = document.getElementById('playBtn');
-playBtn.addEventListener('click', () => {
-  if (!isPlaying) {
-    startOsc(); // isPlaying set inside promise
-  } else {
-    stopOsc();
-  }
-});
 
 
 // ══════════════════════════════════════
