@@ -641,9 +641,7 @@ if (rem !== 0) {
 function selectNote(midi) {
   // Tap active note while playing → stop
   if (isPlaying && midi === selectedMidi) {
-    stopOsc(); isPlaying = false;
-    document.getElementById('playBtn').classList.remove('playing');
-    document.getElementById('playBtn').textContent = 'START TONE';
+    stopOsc();
     return;
   }
   selectedMidi = midi;
@@ -651,7 +649,6 @@ function selectNote(midi) {
   baseFreq = note.freq * Math.pow(2, octaveShift);
   applyFreq();
   updateKb();
-  if (isPlaying) oscillator.frequency.setValueAtTime(currentFreq, audioCtx.currentTime);
 }
 
 function updateKb() {
@@ -705,7 +702,7 @@ function centsRatio(c) { return Math.pow(2, c/1200); }
 
 function applyFreq() {
   currentFreq = baseFreq * centsRatio(cents);
-  if (isPlaying) oscillator.frequency.setValueAtTime(currentFreq, audioCtx.currentTime);
+  if (isPlaying && oscillator) oscillator.frequency.setValueAtTime(currentFreq, audioCtx.currentTime);
 }
 
 // ══════════════════════════════════════
@@ -732,40 +729,45 @@ document.querySelectorAll('.wave-btn').forEach(b => {
 });
 
 // ══════════════════════════════════════
-//  AUDIO ENGINE
+//  AUDIO ENGINE — iOS safe
 // ══════════════════════════════════════
 
-// iOS requires AudioContext to be created AND resumed inside a user gesture.
-// We create it on first touch anywhere on the page.
-document.addEventListener('touchstart', function iosUnlock() {
+function ensureAudio() {
   if (!audioCtx) {
-    audioCtx = new (window.AudioContext||window.webkitAudioContext)();
-    analyser = audioCtx.createAnalyser(); analyser.fftSize=1024; analyser.smoothingTimeConstant=0;
+    audioCtx = new (window.AudioContext || window.webkitAudioContext)();
     gainNode = audioCtx.createGain();
     gainNode.gain.setValueAtTime(volume, audioCtx.currentTime);
-    gainNode.connect(analyser); analyser.connect(audioCtx.destination);
+    analyser = audioCtx.createAnalyser();
+    analyser.fftSize = 1024;
+    analyser.smoothingTimeConstant = 0;
+    gainNode.connect(analyser);
+    analyser.connect(audioCtx.destination);
   }
-  if (audioCtx.state === 'suspended') audioCtx.resume();
-  document.removeEventListener('touchstart', iosUnlock);
-}, { passive: true });
-
-function initAudio() {
-  if (audioCtx) return; // already created by touchstart
-  audioCtx = new (window.AudioContext||window.webkitAudioContext)();
-  analyser = audioCtx.createAnalyser(); analyser.fftSize=1024; analyser.smoothingTimeConstant=0;
-  gainNode = audioCtx.createGain();
-  gainNode.gain.setValueAtTime(volume, audioCtx.currentTime);
-  gainNode.connect(analyser); analyser.connect(audioCtx.destination);
+  return audioCtx.resume(); // always returns a Promise
 }
+
 function startOsc() {
-  if (!audioCtx) initAudio();
-  audioCtx.resume().then(() => {
+  ensureAudio().then(() => {
+    // stop any existing oscillator first
+    if (oscillator) {
+      try { oscillator.stop(); oscillator.disconnect(); } catch(e) {}
+      oscillator = null;
+    }
+    gainNode.gain.cancelScheduledValues(audioCtx.currentTime);
+    gainNode.gain.setValueAtTime(volume, audioCtx.currentTime);
+
     oscillator = audioCtx.createOscillator();
     oscillator.type = waveType;
     oscillator.frequency.setValueAtTime(currentFreq, audioCtx.currentTime);
-    oscillator.connect(gainNode); oscillator.start();
+    oscillator.connect(gainNode);
+    oscillator.start();
+
+    isPlaying = true;
+    playBtn.classList.add('playing');
+    playBtn.textContent = 'STOP TONE';
   });
 }
+
 function stopOsc() {
   if (!oscillator) return;
   gainNode.gain.setTargetAtTime(0, audioCtx.currentTime, 0.02);
@@ -774,13 +776,19 @@ function stopOsc() {
     try { old.stop(); old.disconnect(); } catch(e) {}
     if (gainNode) gainNode.gain.setValueAtTime(volume, audioCtx.currentTime);
   }, 80);
+  isPlaying = false;
+  playBtn.classList.remove('playing');
+  playBtn.textContent = 'START TONE';
 }
+
 function restartOsc() {
+  if (!audioCtx || !isPlaying) return;
   const old = oscillator;
   const neo = audioCtx.createOscillator();
   neo.type = waveType;
   neo.frequency.setValueAtTime(currentFreq, audioCtx.currentTime);
-  neo.connect(gainNode); neo.start(); oscillator = neo;
+  neo.connect(gainNode); neo.start();
+  oscillator = neo;
   setTimeout(() => { try { old.stop(); old.disconnect(); } catch(e) {} }, 30);
 }
 
@@ -790,11 +798,9 @@ function restartOsc() {
 const playBtn = document.getElementById('playBtn');
 playBtn.addEventListener('click', () => {
   if (!isPlaying) {
-    startOsc(); isPlaying = true;
-    playBtn.classList.add('playing'); playBtn.textContent = 'STOP TONE';
+    startOsc(); // isPlaying set inside promise
   } else {
-    stopOsc(); isPlaying = false;
-    playBtn.classList.remove('playing'); playBtn.textContent = 'START TONE';
+    stopOsc();
   }
 });
 
