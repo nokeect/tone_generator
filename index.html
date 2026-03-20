@@ -17,15 +17,15 @@
   --parch2:   #ede0b4;
   --parch3:   #e2d09a;
   --ink:      #1a0f05;
-  --ink2:     #2e1a0a;
-  --burgundy: #6b1a1a;
-  --burg2:    #8a2222;
-  --burg3:    #a83030;
+  --ink2:     #0a1a0a;
+  --burgundy: #1a3d1a;
+  --burg2:    #245424;
+  --burg3:    #2e6e2e;
   --gold:     #c8922a;
   --gold2:    #e0ab3a;
   --gold3:    #f0c050;
   --gold-dim: #7a5510;
-  --shadow:   rgba(26,15,5,0.35);
+  --shadow:   rgba(5,20,5,0.35);
   --radius:   6px;
 }
 
@@ -389,6 +389,28 @@ input[type=range].bpm-sl::-webkit-slider-thumb {
 .metro-rv-half { display:flex; flex-direction:column; }
 .metro-vol-val { font-family:'Cinzel',serif; font-size:.5rem; color:var(--gold-dim); text-align:right; margin-top:.2rem; }
 
+/* Wave toggle */
+.wave-tog {
+  flex: 1;
+  background: linear-gradient(160deg, var(--parch) 0%, var(--parch2) 100%);
+  border: 1px solid var(--gold-dim);
+  border-radius: var(--radius);
+  padding: .45rem .2rem;
+  cursor: pointer;
+  font-family: 'Cinzel', serif;
+  font-size: .55rem;
+  letter-spacing: .1em;
+  color: var(--ink2);
+  transition: all .1s;
+  box-shadow: 0 1px 3px var(--shadow);
+}
+.wave-tog.active {
+  background: linear-gradient(160deg, var(--burgundy), var(--ink2));
+  border-color: var(--gold);
+  color: var(--gold3);
+  box-shadow: 0 0 8px rgba(200,146,42,0.3);
+}
+
 /* Beat dots */
 .beat-row { display: flex; gap: 5px; align-items: center; flex-wrap: wrap; min-height: 16px; }
 .bdot {
@@ -478,27 +500,21 @@ input[type=range].bpm-sl::-webkit-slider-thumb {
     </div>
   </div>
 
-  <!-- WAVEFORM -->
-  <div class="sec-title">Waveform</div>
-  <div class="wave-row">
-    <button class="wave-btn active" data-wave="sine">
-      <svg class="wave-svg" viewBox="0 0 30 14"><path class="ws-line" d="M0 7 C3 2,6 2,7.5 7 S12 12,15 7 S19 2,22.5 7 S27 12,30 7"/></svg>
+  <!-- WAVE TOGGLE -->
+  <div style="padding:.3rem .75rem 0; display:flex; gap:6px;">
+    <button class="wave-tog active" data-wave="sine">
+      <svg viewBox="0 0 40 18" style="width:40px;height:18px;display:block;margin:0 auto 3px">
+        <path d="M0 9 C4 2,8 2,10 9 S16 16,20 9 S26 2,30 9 S36 16,40 9" fill="none" stroke="currentColor" stroke-width="1.5"/>
+      </svg>
       SINE
     </button>
-    <button class="wave-btn" data-wave="square">
-      <svg class="wave-svg" viewBox="0 0 30 14"><path class="ws-line" d="M0 11 L0 4 L7.5 4 L7.5 11 L15 11 L15 4 L22.5 4 L22.5 11 L30 11"/></svg>
-      SQUARE
-    </button>
-    <button class="wave-btn" data-wave="sawtooth">
-      <svg class="wave-svg" viewBox="0 0 30 14"><path class="ws-line" d="M0 11 L10 3 L10 11 L20 3 L20 11 L30 3"/></svg>
-      SAW
-    </button>
-    <button class="wave-btn" data-wave="triangle">
-      <svg class="wave-svg" viewBox="0 0 30 14"><path class="ws-line" d="M0 11 L7.5 3 L15 11 L22.5 3 L30 11"/></svg>
-      TRI
+    <button class="wave-tog" data-wave="triangle">
+      <svg viewBox="0 0 40 18" style="width:40px;height:18px;display:block;margin:0 auto 3px">
+        <path d="M0 14 L10 4 L20 14 L30 4 L40 14" fill="none" stroke="currentColor" stroke-width="1.5"/>
+      </svg>
+      TRIANGLE
     </button>
   </div>
-
 
   <div class="ornament">✦ &nbsp; ✦ &nbsp; ✦</div>
 
@@ -709,7 +725,7 @@ function centsRatio(c) { return Math.pow(2, c/1200); }
 
 function applyFreq() {
   currentFreq = baseFreq * centsRatio(cents);
-  if (isPlaying && oscillator) oscillator.frequency.setValueAtTime(currentFreq, audioCtx.currentTime);
+  if (audioCtx && oscillator) oscillator.frequency.setValueAtTime(currentFreq, audioCtx.currentTime);
 }
 
 // ══════════════════════════════════════
@@ -720,18 +736,20 @@ volSl.addEventListener('input', () => {
   volume = volSl.value/100;
   document.getElementById('volVal').textContent = volSl.value+'%';
   volSl.style.setProperty('--vol', volSl.value+'%');
-  if (gainNode) gainNode.gain.setValueAtTime(volume, audioCtx.currentTime);
+  if (gainNode && isPlaying) gainNode.gain.setValueAtTime(volume, audioCtx.currentTime);
 });
 
 // ══════════════════════════════════════
 //  WAVEFORM
 // ══════════════════════════════════════
-document.querySelectorAll('.wave-btn').forEach(b => {
+//  WAVE TOGGLE (sine / triangle)
+// ══════════════════════════════════════
+document.querySelectorAll('.wave-tog').forEach(b => {
   b.addEventListener('click', () => {
-    document.querySelectorAll('.wave-btn').forEach(x => x.classList.remove('active'));
+    document.querySelectorAll('.wave-tog').forEach(x => x.classList.remove('active'));
     b.classList.add('active');
     waveType = b.dataset.wave;
-    if (isPlaying) restartOsc();
+    if (oscillator) oscillator.type = waveType;
   });
 });
 
@@ -743,54 +761,48 @@ function ensureAudio() {
   if (!audioCtx) {
     audioCtx = new (window.AudioContext || window.webkitAudioContext)();
     gainNode = audioCtx.createGain();
-    gainNode.gain.setValueAtTime(volume, audioCtx.currentTime);
+    gainNode.gain.setValueAtTime(0, audioCtx.currentTime);
     analyser = audioCtx.createAnalyser();
     analyser.fftSize = 1024;
     analyser.smoothingTimeConstant = 0;
     gainNode.connect(analyser);
     analyser.connect(audioCtx.destination);
-  }
-  return audioCtx.resume(); // always returns a Promise
-}
 
-function startOsc() {
-  ensureAudio().then(() => {
-    if (oscillator) {
-      try { oscillator.stop(); oscillator.disconnect(); } catch(e) {}
-      oscillator = null;
-    }
-    gainNode.gain.cancelScheduledValues(audioCtx.currentTime);
-    gainNode.gain.setValueAtTime(volume, audioCtx.currentTime);
-
+    // Create ONE persistent oscillator — never stop/restart it
+    // Just change frequency and mute/unmute via gain
     oscillator = audioCtx.createOscillator();
     oscillator.type = waveType;
     oscillator.frequency.setValueAtTime(currentFreq, audioCtx.currentTime);
     oscillator.connect(gainNode);
     oscillator.start();
+  }
+  return audioCtx.resume();
+}
+
+function startOsc() {
+  ensureAudio().then(() => {
+    oscillator.frequency.setValueAtTime(currentFreq, audioCtx.currentTime);
+    // Unmute with short fade-in to avoid click
+    gainNode.gain.cancelScheduledValues(audioCtx.currentTime);
+    gainNode.gain.setValueAtTime(0, audioCtx.currentTime);
+    gainNode.gain.linearRampToValueAtTime(volume, audioCtx.currentTime + 0.01);
     isPlaying = true;
   });
 }
 
 function stopOsc() {
-  if (!oscillator) return;
-  gainNode.gain.setTargetAtTime(0, audioCtx.currentTime, 0.02);
-  const old = oscillator; oscillator = null;
-  setTimeout(() => {
-    try { old.stop(); old.disconnect(); } catch(e) {}
-    if (gainNode) gainNode.gain.setValueAtTime(volume, audioCtx.currentTime);
-  }, 80);
+  if (!audioCtx) return;
+  // Mute with short fade-out to avoid click
+  gainNode.gain.cancelScheduledValues(audioCtx.currentTime);
+  gainNode.gain.setValueAtTime(gainNode.gain.value, audioCtx.currentTime);
+  gainNode.gain.linearRampToValueAtTime(0, audioCtx.currentTime + 0.015);
   isPlaying = false;
 }
 
 function restartOsc() {
-  if (!audioCtx || !isPlaying) return;
-  const old = oscillator;
-  const neo = audioCtx.createOscillator();
-  neo.type = waveType;
-  neo.frequency.setValueAtTime(currentFreq, audioCtx.currentTime);
-  neo.connect(gainNode); neo.start();
-  oscillator = neo;
-  setTimeout(() => { try { old.stop(); old.disconnect(); } catch(e) {} }, 30);
+  if (!isPlaying) return;
+  // Just update frequency — no restart needed
+  oscillator.frequency.setValueAtTime(currentFreq, audioCtx.currentTime);
 }
 
 
