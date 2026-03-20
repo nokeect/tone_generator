@@ -1,0 +1,913 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Tone Generator</title>
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Tone Generator">
+<meta name="theme-color" content="#1a0f05">
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<link href="https://fonts.googleapis.com/css2?family=IM+Fell+English:ital@0;1&family=Cinzel:wght@400;600;900&family=GFS+Didot&display=swap" rel="stylesheet">
+<style>
+:root {
+  --parch:    #f5e6c8;
+  --parch2:   #ede0b4;
+  --parch3:   #e2d09a;
+  --ink:      #1a0f05;
+  --ink2:     #2e1a0a;
+  --burgundy: #6b1a1a;
+  --burg2:    #8a2222;
+  --burg3:    #a83030;
+  --gold:     #c8922a;
+  --gold2:    #e0ab3a;
+  --gold3:    #f0c050;
+  --gold-dim: #7a5510;
+  --shadow:   rgba(26,15,5,0.35);
+  --radius:   6px;
+}
+
+* { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+
+body {
+  background: var(--ink);
+  min-height: 100vh;
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  font-family: 'GFS Didot', 'IM Fell English', Georgia, serif;
+  overflow-x: hidden;
+}
+
+body::before {
+  content: '';
+  position: fixed; inset: 0; pointer-events: none; z-index: 0;
+  background:
+    radial-gradient(ellipse at 20% 20%, rgba(200,146,42,0.06) 0%, transparent 60%),
+    radial-gradient(ellipse at 80% 80%, rgba(107,26,26,0.08) 0%, transparent 60%),
+    repeating-linear-gradient(0deg, transparent, transparent 28px, rgba(26,15,5,0.03) 28px, rgba(26,15,5,0.03) 29px);
+}
+
+/* ── APP SHELL ── */
+.app {
+  width: min(420px, 100vw);
+  min-height: 100vh;
+  background: var(--parch);
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  padding-bottom: 2rem;
+  box-shadow: 0 0 60px rgba(0,0,0,0.7);
+}
+.app::before {
+  content: '';
+  position: absolute; inset: 5px;
+  border: 1px solid var(--gold);
+  pointer-events: none; z-index: 100; opacity: 0.3;
+}
+
+/* ── SECTION TITLE ── */
+.sec-title {
+  font-family: 'Cinzel', serif;
+  font-size: .55rem;
+  letter-spacing: .3em;
+  color: var(--burg2);
+  text-transform: uppercase;
+  padding: .5rem 1rem .2rem;
+  display: flex;
+  align-items: center;
+  gap: .5rem;
+}
+.sec-title::after {
+  content: '';
+  flex: 1; height: 1px;
+  background: linear-gradient(90deg, var(--parch3), transparent);
+}
+
+/* ── NOTE GRID ── */
+.notes-area { padding: .5rem .75rem .3rem; }
+
+.notes-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 6px;
+}
+
+.note-btn {
+  background: linear-gradient(160deg, var(--parch) 0%, var(--parch2) 100%);
+  border: 1.5px solid var(--gold-dim);
+  border-radius: var(--radius);
+  padding: .7rem .2rem .6rem;
+  cursor: pointer;
+  text-align: center;
+  transition: all .12s;
+  position: relative;
+  box-shadow: 0 2px 4px var(--shadow), inset 0 1px 0 rgba(255,255,255,0.3);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+}
+.note-btn::before {
+  content: '✦';
+  position: absolute;
+  top: 3px; left: 5px;
+  font-size: .38rem;
+  color: var(--gold-dim);
+  opacity: .45;
+}
+.note-btn:active { transform: translateY(1px); box-shadow: 0 1px 2px var(--shadow); }
+.note-btn:hover {
+  border-color: var(--gold);
+  background: linear-gradient(160deg, #fdf3d8 0%, var(--parch) 100%);
+}
+.note-btn.active {
+  background: linear-gradient(160deg, var(--burgundy) 0%, var(--ink2) 100%);
+  border-color: var(--gold);
+  box-shadow: 0 0 14px rgba(200,146,42,0.45), inset 0 1px 0 rgba(255,255,255,0.08);
+}
+.note-btn.active::before { color: var(--gold); opacity: .9; }
+
+/* Psaltic name */
+.n-psaltic {
+  font-family: 'GFS Didot', serif;
+  font-size: 1.45rem;
+  font-weight: 700;
+  color: var(--ink);
+  line-height: 1;
+}
+.note-btn.active .n-psaltic { color: var(--gold3); text-shadow: 0 0 10px rgba(240,192,80,.4); }
+
+/* Hz */
+.n-hz {
+  font-family: 'Cinzel', serif;
+  font-size: .5rem;
+  color: var(--ink2);
+  opacity: .55;
+  line-height: 1;
+  letter-spacing: .05em;
+}
+.note-btn.active .n-hz { color: var(--parch3); opacity: .7; }
+
+/* Octave badge */
+.n-oct {
+  position: absolute;
+  top: 3px; right: 5px;
+  font-size: .42rem;
+  font-family: 'Cinzel', serif;
+  color: var(--gold-dim);
+  line-height: 1;
+}
+.note-btn.active .n-oct { color: var(--gold2); }
+
+/* ── CENTS + VOLUME ── */
+.cv-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+  padding: .3rem .75rem;
+}
+.cv-block {
+  background: linear-gradient(160deg, var(--parch) 0%, var(--parch2) 100%);
+  border: 1px solid var(--gold-dim);
+  border-radius: var(--radius);
+  padding: .5rem .6rem;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.3), 0 2px 4px var(--shadow);
+}
+.cv-label {
+  font-family: 'Cinzel', serif;
+  font-size: .5rem;
+  letter-spacing: .22em;
+  color: var(--gold-dim);
+  text-transform: uppercase;
+  text-align: center;
+  margin-bottom: .35rem;
+}
+
+/* Cents +/- */
+.cents-ctrl { display: flex; align-items: center; gap: .35rem; }
+.pm-btn {
+  background: linear-gradient(160deg, var(--burgundy), var(--ink2));
+  border: 1px solid var(--gold-dim);
+  color: var(--gold3);
+  font-family: 'Cinzel', serif;
+  font-size: 1.1rem;
+  font-weight: 700;
+  width: 32px; height: 32px;
+  border-radius: 4px;
+  cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  flex-shrink: 0;
+  transition: all .1s;
+  box-shadow: 0 2px 4px var(--shadow);
+  line-height: 1;
+  -webkit-user-select: none; user-select: none;
+}
+.pm-btn:active { transform: translateY(1px); filter: brightness(1.25); }
+.cents-display {
+  flex: 1;
+  text-align: center;
+  font-family: 'Cinzel', serif;
+  font-size: .85rem;
+  color: var(--ink);
+  line-height: 1;
+}
+.cents-display small { font-size: .55rem; color: var(--gold-dim); }
+
+/* Volume slider */
+.vol-ctrl { display: flex; flex-direction: column; gap: .28rem; }
+.vol-slider-wrap { display: flex; align-items: center; gap: .35rem; }
+.vol-icon { font-size: .9rem; color: var(--gold-dim); }
+input[type=range].byz-range {
+  -webkit-appearance: none;
+  flex: 1; height: 4px;
+  background: linear-gradient(90deg, var(--burgundy) var(--vol,60%), var(--parch3) var(--vol,60%));
+  border-radius: 2px; outline: none; cursor: pointer;
+}
+input[type=range].byz-range::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 16px; height: 16px;
+  background: radial-gradient(circle at 40% 35%, var(--gold3), var(--gold));
+  border: 1.5px solid var(--gold-dim);
+  border-radius: 50%;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.4);
+  cursor: pointer;
+}
+.vol-val {
+  font-family: 'Cinzel', serif;
+  font-size: .55rem; color: var(--gold-dim); text-align: right;
+}
+
+/* ── WAVEFORM ── */
+.wave-row {
+  display: flex; gap: 5px;
+  padding: .2rem .75rem .3rem;
+}
+.wave-btn {
+  flex: 1;
+  background: linear-gradient(160deg, var(--parch) 0%, var(--parch2) 100%);
+  border: 1px solid var(--gold-dim);
+  border-radius: var(--radius);
+  padding: .42rem .1rem;
+  cursor: pointer;
+  text-align: center;
+  font-family: 'Cinzel', serif;
+  font-size: .48rem;
+  letter-spacing: .06em;
+  color: var(--ink2);
+  transition: all .1s;
+  box-shadow: 0 1px 3px var(--shadow);
+  display: flex; flex-direction: column; align-items: center; gap: 3px;
+}
+.wave-btn:active { transform: translateY(1px); }
+.wave-btn.active {
+  background: linear-gradient(160deg, var(--burgundy), var(--ink2));
+  border-color: var(--gold);
+  color: var(--gold3);
+  box-shadow: 0 0 8px rgba(200,146,42,0.3);
+}
+.wave-svg { width: 30px; height: 14px; }
+.ws-line { stroke: var(--ink2); fill: none; stroke-width: 1.5; }
+.wave-btn.active .ws-line { stroke: var(--gold3); }
+
+/* ── PLAY BUTTON ── */
+.play-wrap { padding: .3rem .75rem .35rem; }
+.play-btn {
+  width: 100%;
+  padding: .85rem;
+  background: linear-gradient(160deg, var(--burgundy) 0%, var(--ink2) 100%);
+  border: 2px solid var(--gold-dim);
+  border-radius: var(--radius);
+  color: var(--gold3);
+  font-family: 'Cinzel', serif;
+  font-size: .9rem;
+  font-weight: 600;
+  letter-spacing: .22em;
+  cursor: pointer;
+  transition: all .15s;
+  text-align: center;
+  box-shadow: 0 3px 10px var(--shadow), inset 0 1px 0 rgba(255,255,255,0.04);
+  position: relative;
+}
+.play-btn::before { content:'✦'; position:absolute; left:.85rem; top:50%; transform:translateY(-50%); font-size:.55rem; color:var(--gold-dim); opacity:.6; }
+.play-btn::after  { content:'✦'; position:absolute; right:.85rem; top:50%; transform:translateY(-50%); font-size:.55rem; color:var(--gold-dim); opacity:.6; }
+.play-btn:active { filter: brightness(1.15); transform: translateY(1px); }
+.play-btn.playing {
+  background: linear-gradient(160deg, #1a4a1a 0%, #0a1a0a 100%);
+  border-color: #4a8a3a;
+  color: #a0e080;
+  animation: glow-green 2s ease-in-out infinite;
+}
+@keyframes glow-green {
+  0%,100%{ box-shadow: 0 3px 10px var(--shadow); }
+  50%    { box-shadow: 0 3px 22px rgba(80,160,50,0.38); }
+}
+
+/* ── ORNAMENT ── */
+.ornament {
+  text-align: center;
+  padding: .25rem 0;
+  color: var(--gold-dim);
+  font-size: .65rem;
+  letter-spacing: .45em;
+  opacity: .55;
+}
+
+/* ── VISUALIZER ── */
+.vis-wrap { padding: .25rem .75rem 0; }
+.vis-inner {
+  height: 40px; border-radius: 4px; overflow: hidden;
+  border: 1px solid var(--gold-dim); background: var(--ink2);
+}
+#visualizer { width:100%; height:100%; display:block; }
+
+/* ── METRONOME ── */
+.metro-panel {
+  margin: .35rem .75rem 0;
+  background: linear-gradient(180deg, var(--parch2) 0%, var(--parch) 100%);
+  border: 1.5px solid var(--gold-dim);
+  border-radius: var(--radius);
+  overflow: hidden;
+  box-shadow: 0 2px 8px var(--shadow);
+}
+.metro-hdr {
+  background: linear-gradient(90deg, var(--ink2), var(--burgundy), var(--ink2));
+  padding: .42rem .8rem;
+  display: flex; align-items: center; justify-content: space-between;
+  border-bottom: 1px solid var(--gold-dim);
+}
+.metro-title {
+  font-family: 'Cinzel', serif;
+  font-size: .65rem; letter-spacing: .22em; color: var(--gold3);
+}
+.metro-bpm-wrap { text-align: right; }
+.metro-bpm {
+  font-family: 'Cinzel', serif;
+  font-size: 1.4rem; font-weight: 900;
+  color: var(--gold3); text-shadow: 0 0 10px rgba(240,192,80,0.35);
+  line-height: 1;
+}
+.metro-bpm-u {
+  font-family: 'Cinzel', serif;
+  font-size: .45rem; color: var(--gold-dim); letter-spacing: .2em; display: block;
+}
+.metro-body { padding: .5rem .7rem; display: flex; flex-direction: column; gap: .45rem; }
+
+/* BPM row */
+.bpm-row { display: grid; grid-template-columns: 30px 1fr 30px; gap: .4rem; align-items: center; }
+.bstep {
+  background: linear-gradient(160deg, var(--burgundy), var(--ink2));
+  border: 1px solid var(--gold-dim); color: var(--gold3);
+  font-family: 'Cinzel', serif; font-size: .9rem;
+  width: 30px; height: 30px; cursor: pointer; border-radius: 4px;
+  display: flex; align-items: center; justify-content: center;
+  transition: all .1s; box-shadow: 0 1px 3px var(--shadow);
+}
+.bstep:active { transform: translateY(1px); filter: brightness(1.2); }
+input[type=range].bpm-sl {
+  -webkit-appearance: none; width: 100%; height: 4px;
+  background: linear-gradient(90deg, var(--burgundy) var(--bval,35%), var(--parch3) var(--bval,35%));
+  border-radius: 2px; outline: none; cursor: pointer;
+}
+input[type=range].bpm-sl::-webkit-slider-thumb {
+  -webkit-appearance: none; width: 16px; height: 16px;
+  background: radial-gradient(circle at 40% 35%, var(--gold3), var(--gold));
+  border: 1.5px solid var(--gold-dim); border-radius: 50%;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.4); cursor: pointer;
+}
+
+/* Rhythm dropdown */
+.rhythm-row { display: flex; align-items: center; gap: .5rem; }
+.rhythm-label { font-family:'Cinzel',serif; font-size:.52rem; color:var(--gold-dim); letter-spacing:.15em; white-space:nowrap; text-transform:uppercase; }
+.byz-select {
+  flex: 1;
+  background: linear-gradient(160deg, var(--ink2), var(--burgundy));
+  border: 1px solid var(--gold-dim); border-radius: 4px;
+  color: var(--gold3); font-family: 'Cinzel', serif;
+  font-size: .6rem; padding: .35rem .5rem;
+  cursor: pointer; outline: none; letter-spacing: .06em;
+  box-shadow: 0 1px 3px var(--shadow);
+  -webkit-appearance: none; appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%23c8922a'/%3E%3C/svg%3E");
+  background-repeat: no-repeat; background-position: right .5rem center;
+  padding-right: 1.5rem;
+}
+.byz-select option { background: #1a0f05; color: var(--parch); }
+
+/* Beat dots */
+.beat-row { display: flex; gap: 5px; align-items: center; flex-wrap: wrap; min-height: 16px; }
+.bdot {
+  width: 10px; height: 10px; border-radius: 50%;
+  background: var(--parch3); border: 1px solid var(--gold-dim);
+  transition: background .06s, box-shadow .06s; flex-shrink: 0;
+}
+.bdot.acc { width: 14px; height: 14px; }
+.bdot.on-acc { background: var(--gold3)!important; border-color:var(--gold3); box-shadow:0 0 8px rgba(240,192,80,.8); }
+.bdot.on-beat { background: var(--burg3)!important; border-color:var(--burg2); box-shadow:0 0 5px rgba(168,48,48,.5); }
+
+/* Metro play btn */
+.metro-play-btn {
+  width: 100%; padding: .58rem;
+  background: linear-gradient(160deg, var(--ink2), var(--burgundy));
+  border: 1.5px solid var(--gold-dim); border-radius: var(--radius);
+  color: var(--gold3); font-family: 'Cinzel', serif;
+  font-size: .72rem; font-weight: 600; letter-spacing: .2em;
+  cursor: pointer; transition: all .15s; box-shadow: 0 2px 6px var(--shadow);
+}
+.metro-play-btn:active { filter: brightness(1.15); }
+.metro-play-btn.running {
+  background: linear-gradient(160deg, #0e2a0e, #1a4a1a);
+  border-color: #4a8a3a; color: #a0e080;
+}
+
+
+/* ── OCTAVE SHIFT BUTTON ── */
+.oct-btn {
+  background: linear-gradient(160deg, var(--burgundy), var(--ink2));
+  border: 1px solid var(--gold-dim);
+  color: var(--gold3);
+  font-family: 'Cinzel', serif;
+  font-size: .5rem;
+  letter-spacing: .1em;
+  padding: .22rem .55rem;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all .12s;
+  box-shadow: 0 1px 3px var(--shadow);
+  white-space: nowrap;
+  margin-left: auto;
+}
+.oct-btn:active { filter: brightness(1.2); transform: translateY(1px); }
+
+/* ── FOOTER ── */
+.byz-footer {
+  text-align: center; padding: .6rem 1rem 0;
+  font-family: 'IM Fell English', serif; font-style: italic;
+  font-size: .58rem; color: var(--gold-dim); letter-spacing: .12em; opacity: .65;
+}
+</style>
+</head>
+<body>
+<div class="app">
+
+  <!-- NOTE GRID -->
+  <div class="sec-title" style="padding-top:.75rem">
+    Notes
+    <button class="oct-btn" id="octShiftBtn" title="Shift octave up/down">▲ OCT <span id="octShiftLabel">+0</span></button>
+  </div>
+  <div class="notes-area">
+    <div class="notes-grid" id="notesGrid"></div>
+  </div>
+
+  <!-- CENTS + VOLUME -->
+  <div class="cv-row">
+    <div class="cv-block">
+      <div class="cv-label">Cents</div>
+      <div class="cents-ctrl">
+        <button class="pm-btn" id="centsDown">−</button>
+        <div class="cents-display" id="centsDisplay">0 <small>¢</small></div>
+        <button class="pm-btn" id="centsUp">+</button>
+      </div>
+    </div>
+    <div class="cv-block">
+      <div class="cv-label">Volume</div>
+      <div class="vol-ctrl">
+        <div class="vol-slider-wrap">
+          <span class="vol-icon">♩</span>
+          <input type="range" id="volSlider" class="byz-range" min="0" max="100" value="60" style="--vol:60%">
+        </div>
+        <div class="vol-val" id="volVal">60%</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- WAVEFORM -->
+  <div class="sec-title">Waveform</div>
+  <div class="wave-row">
+    <button class="wave-btn active" data-wave="sine">
+      <svg class="wave-svg" viewBox="0 0 30 14"><path class="ws-line" d="M0 7 C3 2,6 2,7.5 7 S12 12,15 7 S19 2,22.5 7 S27 12,30 7"/></svg>
+      SINE
+    </button>
+    <button class="wave-btn" data-wave="square">
+      <svg class="wave-svg" viewBox="0 0 30 14"><path class="ws-line" d="M0 11 L0 4 L7.5 4 L7.5 11 L15 11 L15 4 L22.5 4 L22.5 11 L30 11"/></svg>
+      SQUARE
+    </button>
+    <button class="wave-btn" data-wave="sawtooth">
+      <svg class="wave-svg" viewBox="0 0 30 14"><path class="ws-line" d="M0 11 L10 3 L10 11 L20 3 L20 11 L30 3"/></svg>
+      SAW
+    </button>
+    <button class="wave-btn" data-wave="triangle">
+      <svg class="wave-svg" viewBox="0 0 30 14"><path class="ws-line" d="M0 11 L7.5 3 L15 11 L22.5 3 L30 11"/></svg>
+      TRI
+    </button>
+  </div>
+
+  <!-- PLAY -->
+  <div class="play-wrap">
+    <button class="play-btn" id="playBtn">START TONE</button>
+  </div>
+
+  <div class="ornament">✦ &nbsp; ✦ &nbsp; ✦</div>
+
+  <!-- VISUALIZER -->
+  <div class="vis-wrap">
+    <div class="vis-inner"><canvas id="visualizer"></canvas></div>
+  </div>
+
+  <!-- METRONOME -->
+  <div class="sec-title" style="margin-top:.4rem">Metronome</div>
+  <div class="metro-panel">
+    <div class="metro-hdr">
+      <div class="metro-title">♩ METRONOME</div>
+      <div class="metro-bpm-wrap">
+        <div class="metro-bpm" id="bpmDisplay">120</div>
+        <span class="metro-bpm-u">BPM</span>
+      </div>
+    </div>
+    <div class="metro-body">
+      <div class="bpm-row">
+        <button class="bstep" id="bpmDown">−</button>
+        <input type="range" id="bpmSlider" class="bpm-sl" min="20" max="300" value="120" step="1" style="--bval:35%">
+        <button class="bstep" id="bpmUp">+</button>
+      </div>
+      <div class="rhythm-row">
+        <span class="rhythm-label">Rhythm:</span>
+        <select id="rhythmSelect" class="byz-select"></select>
+      </div>
+      <div class="beat-row" id="beatRow"></div>
+      <button class="metro-play-btn" id="metroBtn">▶ START METRONOME</button>
+    </div>
+  </div>
+
+  <div class="byz-footer">Byzantine Psaltic Tone Generator</div>
+</div>
+
+<script>
+// ══════════════════════════════════════
+//  NOTES: FA2(MIDI41) → MI4(MIDI64), naturals only
+//  Grid: ascending left-to-right, bottom row = lowest notes
+//  Layout rows (top→bottom in CSS grid = high→low):
+//    Row 1: DO4  RE4  MI4
+//    Row 2: SOL3 LA3  SI3
+//    Row 3: RE3  MI3  FA3
+//    Row 4: LA2  SI2  DO3
+//    Row 5: FA2  SOL2  [spacer]
+// ══════════════════════════════════════
+const SUBS = ['₀','₁','₂','₃','₄','₅','₆','₇','₈','₉'];
+
+const PSALTIC_MAP = {
+  0:  {ps:'Νη'},   // DO
+  2:  {ps:'Πα'},   // RE
+  4:  {ps:'Βου'},  // MI
+  5:  {ps:'Γα'},   // FA
+  7:  {ps:'Δι'},   // SOL
+  9:  {ps:'Κε'},   // LA
+  11: {ps:'Ζω'},   // SI
+};
+
+// Build all natural notes FA2→MI4
+const ALL_NOTES = [];
+for (let midi = 41; midi <= 64; midi++) {
+  const oct = Math.floor(midi/12) - 1;
+  const st  = midi % 12;
+  if (!PSALTIC_MAP[st]) continue;
+  const freq = 440 * Math.pow(2, (midi-69)/12);
+  ALL_NOTES.push({ ps: PSALTIC_MAP[st].ps, st, oct, midi, freq });
+}
+// ALL_NOTES ascending: FA2 SOL2 LA2 SI2 DO3 RE3 MI3 FA3 SOL3 LA3 SI3 DO4 RE4 MI4  (14 notes)
+
+// For the grid we want:
+//  - LEFT = LOW, RIGHT = HIGH within each row
+//  - TOP row = highest notes, BOTTOM row = lowest notes
+//  So we fill CSS grid top-left → bottom-right with descending notes,
+//  but within each row of 3 we want ascending (low→high left→right).
+//
+// Strategy: reverse ALL_NOTES → MI4…FA2 (highest first).
+// Chunk into rows of 3, each chunk is still descending [high,mid,low].
+// Reverse each chunk so each row displays [low,mid,high] left→right. ✓
+
+const reversed = [...ALL_NOTES].reverse(); // MI4 … FA2
+const rows = [];
+for (let i = 0; i < reversed.length; i += 3) {
+  const chunk = reversed.slice(i, i+3);
+  rows.push(chunk.reverse()); // each row: low → high left→right
+}
+// Flatten for grid
+const GRID_NOTES = rows.flat();
+
+// ══════════════════════════════════════
+//  STATE
+// ══════════════════════════════════════
+let selectedMidi = 64; // MI4
+let octaveShift = 0;
+let baseFreq = ALL_NOTES.find(n=>n.midi===64).freq;
+let cents = 0;
+let currentFreq = baseFreq;
+let waveType = 'sine';
+let volume = 0.6;
+let isPlaying = false;
+
+let audioCtx = null, oscillator = null, gainNode = null, analyser = null;
+
+// ══════════════════════════════════════
+//  BUILD NOTE GRID
+// ══════════════════════════════════════
+const notesGrid = document.getElementById('notesGrid');
+
+GRID_NOTES.forEach(n => {
+  const btn = document.createElement('button');
+  btn.className = 'note-btn' + (n.midi===selectedMidi?' active':'');
+  btn.dataset.midi = n.midi;
+  btn.innerHTML = `
+    <span class="n-oct">${SUBS[n.oct]}</span>
+    <span class="n-psaltic">${n.ps}</span>
+  `;
+  btn.addEventListener('click', () => selectNote(n.midi));
+  notesGrid.appendChild(btn);
+});
+
+// Spacer for last row (14 notes → 5 rows × 3 = 15, need 1 spacer)
+const rem = GRID_NOTES.length % 3;
+if (rem !== 0) {
+  for (let i = 0; i < 3 - rem; i++) {
+    const sp = document.createElement('div');
+    notesGrid.appendChild(sp);
+  }
+}
+
+function selectNote(midi) {
+  // Tap active note while playing → stop
+  if (isPlaying && midi === selectedMidi) {
+    stopOsc(); isPlaying = false;
+    document.getElementById('playBtn').classList.remove('playing');
+    document.getElementById('playBtn').textContent = 'START TONE';
+    return;
+  }
+  selectedMidi = midi;
+  const note = ALL_NOTES.find(n=>n.midi===midi);
+  baseFreq = note.freq * Math.pow(2, octaveShift);
+  applyFreq();
+  updateKb();
+  if (isPlaying) oscillator.frequency.setValueAtTime(currentFreq, audioCtx.currentTime);
+}
+
+function updateKb() {
+  notesGrid.querySelectorAll('.note-btn').forEach(b =>
+    b.classList.toggle('active', +b.dataset.midi === selectedMidi)
+  );
+}
+
+// ══════════════════════════════════════
+//  OCTAVE SHIFT
+// ══════════════════════════════════════
+function recalcBaseFreq() {
+  const note = ALL_NOTES.find(n=>n.midi===selectedMidi);
+  if (!note) return;
+  baseFreq = note.freq * Math.pow(2, octaveShift);
+  applyFreq();
+}
+
+document.getElementById('octShiftBtn').addEventListener('click', () => {
+  octaveShift = octaveShift === 0 ? 1 : 0;
+  document.getElementById('octShiftLabel').textContent = octaveShift === 1 ? '+1' : '+0';
+  recalcBaseFreq();
+});
+
+// ══════════════════════════════════════
+//  CENTS (hold-to-repeat)
+// ══════════════════════════════════════
+let centsStep = 1, repeatTimer = null;
+
+function changeCents(dir) {
+  cents = dir === 'down' ? Math.max(-100, cents-centsStep) : Math.min(100, cents+centsStep);
+  document.getElementById('centsDisplay').innerHTML = `${cents} <small>¢</small>`;
+  applyFreq();
+}
+function startRepeat(dir) {
+  stopRepeat();
+  repeatTimer = setInterval(() => changeCents(dir), 75);
+}
+function stopRepeat() { clearInterval(repeatTimer); repeatTimer = null; }
+
+document.getElementById('centsDown').addEventListener('click', () => changeCents('down'));
+document.getElementById('centsUp').addEventListener('click',   () => changeCents('up'));
+document.getElementById('centsDown').addEventListener('pointerdown', () => startRepeat('down'));
+document.getElementById('centsUp').addEventListener('pointerdown',   () => startRepeat('up'));
+['pointerup','pointerleave','touchend'].forEach(ev => {
+  document.getElementById('centsDown').addEventListener(ev, stopRepeat);
+  document.getElementById('centsUp').addEventListener(ev, stopRepeat);
+});
+
+function centsRatio(c) { return Math.pow(2, c/1200); }
+
+function applyFreq() {
+  currentFreq = baseFreq * centsRatio(cents);
+  if (isPlaying) oscillator.frequency.setValueAtTime(currentFreq, audioCtx.currentTime);
+}
+
+// ══════════════════════════════════════
+//  VOLUME
+// ══════════════════════════════════════
+const volSl = document.getElementById('volSlider');
+volSl.addEventListener('input', () => {
+  volume = volSl.value/100;
+  document.getElementById('volVal').textContent = volSl.value+'%';
+  volSl.style.setProperty('--vol', volSl.value+'%');
+  if (gainNode) gainNode.gain.setValueAtTime(volume, audioCtx.currentTime);
+});
+
+// ══════════════════════════════════════
+//  WAVEFORM
+// ══════════════════════════════════════
+document.querySelectorAll('.wave-btn').forEach(b => {
+  b.addEventListener('click', () => {
+    document.querySelectorAll('.wave-btn').forEach(x => x.classList.remove('active'));
+    b.classList.add('active');
+    waveType = b.dataset.wave;
+    if (isPlaying) restartOsc();
+  });
+});
+
+// ══════════════════════════════════════
+//  AUDIO ENGINE
+// ══════════════════════════════════════
+function initAudio() {
+  audioCtx = new (window.AudioContext||window.webkitAudioContext)({sampleRate:44100});
+  analyser = audioCtx.createAnalyser(); analyser.fftSize=1024; analyser.smoothingTimeConstant=0;
+  gainNode = audioCtx.createGain();
+  gainNode.gain.setValueAtTime(volume, audioCtx.currentTime);
+  gainNode.connect(analyser); analyser.connect(audioCtx.destination);
+}
+function startOsc() {
+  if (!audioCtx) initAudio();
+  if (audioCtx.state==='suspended') audioCtx.resume();
+  oscillator = audioCtx.createOscillator();
+  oscillator.type = waveType;
+  oscillator.frequency.setValueAtTime(currentFreq, audioCtx.currentTime);
+  oscillator.connect(gainNode); oscillator.start();
+}
+function stopOsc() {
+  if (!oscillator) return;
+  gainNode.gain.setTargetAtTime(0, audioCtx.currentTime, 0.02);
+  const old = oscillator; oscillator = null;
+  setTimeout(() => {
+    try { old.stop(); old.disconnect(); } catch(e) {}
+    if (gainNode) gainNode.gain.setValueAtTime(volume, audioCtx.currentTime);
+  }, 80);
+}
+function restartOsc() {
+  const old = oscillator;
+  const neo = audioCtx.createOscillator();
+  neo.type = waveType;
+  neo.frequency.setValueAtTime(currentFreq, audioCtx.currentTime);
+  neo.connect(gainNode); neo.start(); oscillator = neo;
+  setTimeout(() => { try { old.stop(); old.disconnect(); } catch(e) {} }, 30);
+}
+
+// ══════════════════════════════════════
+//  PLAY BUTTON
+// ══════════════════════════════════════
+const playBtn = document.getElementById('playBtn');
+playBtn.addEventListener('click', () => {
+  if (!isPlaying) {
+    startOsc(); isPlaying = true;
+    playBtn.classList.add('playing'); playBtn.textContent = 'STOP TONE';
+  } else {
+    stopOsc(); isPlaying = false;
+    playBtn.classList.remove('playing'); playBtn.textContent = 'START TONE';
+  }
+});
+
+
+// ══════════════════════════════════════
+//  VISUALIZER
+// ══════════════════════════════════════
+const cv = document.getElementById('visualizer'), cx = cv.getContext('2d');
+function resizeCv() {
+  cv.width = cv.offsetWidth*devicePixelRatio;
+  cv.height = cv.offsetHeight*devicePixelRatio;
+  cx.scale(devicePixelRatio, devicePixelRatio);
+}
+resizeCv(); window.addEventListener('resize', resizeCv);
+
+function drawVis() {
+  requestAnimationFrame(drawVis);
+  const W = cv.offsetWidth, H = cv.offsetHeight;
+  cx.clearRect(0,0,W,H);
+  if (!analyser || !isPlaying) {
+    cx.strokeStyle = 'rgba(200,146,42,0.22)'; cx.lineWidth = 1;
+    cx.beginPath(); cx.moveTo(0,H/2); cx.lineTo(W,H/2); cx.stroke(); return;
+  }
+  const buf = new Float32Array(analyser.fftSize);
+  analyser.getFloatTimeDomainData(buf);
+  cx.strokeStyle = '#c8922a'; cx.lineWidth = 1.5;
+  cx.shadowColor = '#e0ab3a'; cx.shadowBlur = 4;
+  cx.beginPath();
+  for (let i = 0; i < buf.length; i++) {
+    const x = i*W/buf.length, y = H/2 + buf[i]*H*.42;
+    i===0 ? cx.moveTo(x,y) : cx.lineTo(x,y);
+  }
+  cx.stroke(); cx.shadowBlur = 0;
+}
+drawVis();
+
+// ══════════════════════════════════════
+//  METRONOME
+// ══════════════════════════════════════
+const RHYTHMS = [
+  {name:'4/4 — Standard',  pat:[1,0,0,0]},
+  {name:'3/4 — Waltz',     pat:[1,0,0]},
+  {name:'6/8',              pat:[1,0,0,1,0,0]},
+  {name:'2/4 — March',     pat:[1,0]},
+  {name:'5/4 — Asymmetric',pat:[1,0,0,1,0]},
+  {name:'7/8',              pat:[1,0,1,0,1,0,0]},
+  {name:'12/8 — Blues',    pat:[1,0,0,1,0,0,1,0,0,1,0,0]},
+  {name:'Pure Click',       pat:[1]},
+];
+
+let bpm=120, currentRhythm=0, metroBeat=0, metroRunning=false;
+let metroCtx=null, schedulerTimer=null, nextBeatTime=0;
+const LOOKAHEAD=0.1, SCHED_INT=25;
+
+const sel = document.getElementById('rhythmSelect');
+RHYTHMS.forEach((r,i) => {
+  const opt = document.createElement('option');
+  opt.value = i; opt.textContent = r.name;
+  sel.appendChild(opt);
+});
+sel.addEventListener('change', () => { currentRhythm=+sel.value; metroBeat=0; buildDots(); });
+
+function buildDots() {
+  const row = document.getElementById('beatRow'); row.innerHTML = '';
+  RHYTHMS[currentRhythm].pat.forEach(a => {
+    const d = document.createElement('div');
+    d.className = 'bdot' + (a?' acc':'');
+    row.appendChild(d);
+  });
+}
+buildDots();
+
+function flashDot(idx) {
+  const dots = document.querySelectorAll('.bdot');
+  dots.forEach(d => d.classList.remove('on-acc','on-beat'));
+  if (dots[idx]) {
+    dots[idx].classList.add(RHYTHMS[currentRhythm].pat[idx] ? 'on-acc' : 'on-beat');
+    setTimeout(() => dots[idx] && dots[idx].classList.remove('on-acc','on-beat'), 120);
+  }
+}
+
+function schedClick(time, accent) {
+  if (!metroCtx) return;
+  const sr=metroCtx.sampleRate, samps=Math.ceil(sr*(accent?.013:.009));
+  const buf=metroCtx.createBuffer(1,samps,sr), d=buf.getChannelData(0);
+  const f=accent?1400:900;
+  for(let i=0;i<samps;i++) d[i]=Math.exp(-i/(samps*.28))*Math.sin(2*Math.PI*f*i/sr);
+  const src=metroCtx.createBufferSource(); src.buffer=buf;
+  const g=metroCtx.createGain(); g.gain.setValueAtTime(accent?.88:.48,time);
+  src.connect(g); g.connect(metroCtx.destination); src.start(time);
+}
+
+function scheduler() {
+  const r=RHYTHMS[currentRhythm], spb=60/bpm;
+  while (nextBeatTime < metroCtx.currentTime+LOOKAHEAD) {
+    const bi=metroBeat%r.pat.length, acc=r.pat[bi]===1;
+    schedClick(nextBeatTime,acc);
+    const delay=Math.max(0,(nextBeatTime-metroCtx.currentTime)*1000-12);
+    (function(b){ setTimeout(()=>flashDot(b),delay); })(bi);
+    nextBeatTime+=spb; metroBeat++;
+  }
+  schedulerTimer=setTimeout(scheduler,SCHED_INT);
+}
+
+const bpmSl=document.getElementById('bpmSlider'), bpmDsp=document.getElementById('bpmDisplay');
+function updateBpm() {
+  bpmDsp.textContent=bpm;
+  bpmSl.style.setProperty('--bval', ((bpm-20)/280*100)+'%');
+}
+bpmSl.addEventListener('input',()=>{ bpm=+bpmSl.value; updateBpm(); });
+document.getElementById('bpmDown').addEventListener('click',()=>{ bpm=Math.max(20,bpm-1); bpmSl.value=bpm; updateBpm(); });
+document.getElementById('bpmUp').addEventListener('click',()=>{ bpm=Math.min(300,bpm+1); bpmSl.value=bpm; updateBpm(); });
+
+const metroBtn=document.getElementById('metroBtn');
+metroBtn.addEventListener('click',()=>{
+  if (!metroRunning) {
+    if(!metroCtx) metroCtx=new (window.AudioContext||window.webkitAudioContext)();
+    if(metroCtx.state==='suspended') metroCtx.resume();
+    metroBeat=0; nextBeatTime=metroCtx.currentTime+.04; scheduler();
+    metroRunning=true; metroBtn.classList.add('running'); metroBtn.textContent='⏹ STOP METRONOME';
+  } else {
+    clearTimeout(schedulerTimer); schedulerTimer=null;
+    document.querySelectorAll('.bdot').forEach(d=>d.classList.remove('on-acc','on-beat'));
+    metroRunning=false; metroBtn.classList.remove('running'); metroBtn.textContent='▶ START METRONOME';
+  }
+});
+
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => navigator.serviceWorker.register('./sw.js'));
+}
+</script>
+</body>
+</html>
