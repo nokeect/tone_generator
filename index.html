@@ -781,11 +781,15 @@ function ensureAudio() {
 
 function startOsc() {
   ensureAudio().then(() => {
-    oscillator.frequency.setValueAtTime(currentFreq, audioCtx.currentTime);
-    // Unmute with short fade-in to avoid click
-    gainNode.gain.cancelScheduledValues(audioCtx.currentTime);
-    gainNode.gain.setValueAtTime(0, audioCtx.currentTime);
-    gainNode.gain.linearRampToValueAtTime(volume, audioCtx.currentTime + 0.01);
+    const t = audioCtx.currentTime;
+    // Micro-fade out to kill any phase discontinuity
+    gainNode.gain.cancelScheduledValues(t);
+    gainNode.gain.setValueAtTime(gainNode.gain.value, t);
+    gainNode.gain.linearRampToValueAtTime(0, t + 0.008);
+    // Change frequency at the silence point
+    oscillator.frequency.setValueAtTime(currentFreq, t + 0.008);
+    // Fade back in
+    gainNode.gain.linearRampToValueAtTime(volume, t + 0.018);
     isPlaying = true;
   });
 }
