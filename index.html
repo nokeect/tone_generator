@@ -733,10 +733,15 @@ function applyFreq() {
 // ══════════════════════════════════════
 const volSl = document.getElementById('volSlider');
 volSl.addEventListener('input', () => {
-  volume = volSl.value/100;
+  volume = Math.max(volSl.value / 100, 0.0001);
   document.getElementById('volVal').textContent = volSl.value+'%';
   volSl.style.setProperty('--vol', volSl.value+'%');
-  if (gainNode && isPlaying) gainNode.gain.setValueAtTime(volume, audioCtx.currentTime);
+  if (gainNode && isPlaying) {
+    const t = audioCtx.currentTime;
+    gainNode.gain.cancelScheduledValues(t);
+    gainNode.gain.setValueAtTime(Math.max(gainNode.gain.value, 0.0001), t);
+    gainNode.gain.exponentialRampToValueAtTime(volume, t + 0.02);
+  }
 });
 
 // ══════════════════════════════════════
@@ -782,30 +787,29 @@ function ensureAudio() {
 function startOsc() {
   ensureAudio().then(() => {
     const t = audioCtx.currentTime;
-    // Micro-fade out to kill any phase discontinuity
     gainNode.gain.cancelScheduledValues(t);
-    gainNode.gain.setValueAtTime(gainNode.gain.value, t);
-    gainNode.gain.linearRampToValueAtTime(0, t + 0.008);
-    // Change frequency at the silence point
-    oscillator.frequency.setValueAtTime(currentFreq, t + 0.008);
-    // Fade back in
-    gainNode.gain.linearRampToValueAtTime(volume, t + 0.018);
+    gainNode.gain.setValueAtTime(Math.max(gainNode.gain.value, 0.0001), t);
+    // Fade to near-zero
+    gainNode.gain.exponentialRampToValueAtTime(0.0001, t + 0.012);
+    // Change frequency at silence
+    oscillator.frequency.setValueAtTime(currentFreq, t + 0.012);
+    // Fade back up smoothly
+    gainNode.gain.exponentialRampToValueAtTime(Math.max(volume, 0.0001), t + 0.040);
     isPlaying = true;
   });
 }
 
 function stopOsc() {
   if (!audioCtx) return;
-  // Mute with short fade-out to avoid click
-  gainNode.gain.cancelScheduledValues(audioCtx.currentTime);
-  gainNode.gain.setValueAtTime(gainNode.gain.value, audioCtx.currentTime);
-  gainNode.gain.linearRampToValueAtTime(0, audioCtx.currentTime + 0.015);
+  const t = audioCtx.currentTime;
+  gainNode.gain.cancelScheduledValues(t);
+  gainNode.gain.setValueAtTime(Math.max(gainNode.gain.value, 0.0001), t);
+  gainNode.gain.exponentialRampToValueAtTime(0.0001, t + 0.030);
   isPlaying = false;
 }
 
 function restartOsc() {
   if (!isPlaying) return;
-  // Just update frequency — no restart needed
   oscillator.frequency.setValueAtTime(currentFreq, audioCtx.currentTime);
 }
 
